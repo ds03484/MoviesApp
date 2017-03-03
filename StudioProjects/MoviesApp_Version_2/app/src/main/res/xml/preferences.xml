@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <CheckBoxPreference
+        android:key="@string/pref_popularity_key"
+        android:title="@string/pref_popularity_label"
+        android:summary="Order by most popular"
+        android:defaultValue="@string/pref_popularity_default" />
+    <CheckBoxPreference
+        android:key="@string/pref_rating_key"
+        android:title="@string/pref_rating_label"
+        android:summary="Order by top rated"
+        android:defaultValue="@string/pref_rating_default" />
+</PreferenceScreen>
