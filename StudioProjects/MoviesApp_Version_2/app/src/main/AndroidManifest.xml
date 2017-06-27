@@ -31,7 +31,7 @@
             android:parentActivityName=".MainActivity" >
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
-                android:value="com.example.android.sunshine.app.MainActivity" />
+                android:value="com.example.android.moviesapp_version_2.MainActivity" />
         </activity>
         <activity
             android:name=".SettingsActivity"
