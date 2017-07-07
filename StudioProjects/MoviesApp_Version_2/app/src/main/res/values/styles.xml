@@ -12,4 +12,9 @@
     <style name="SettingsTheme" parent="AppTheme">
     </style>
 
+    <!-- Style for movie listview -->
+    <style name="MovieGridStyle">
+
+    </style>
+
 </resources>

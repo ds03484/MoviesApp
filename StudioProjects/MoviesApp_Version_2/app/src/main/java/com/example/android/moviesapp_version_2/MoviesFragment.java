@@ -9,14 +9,16 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.content.CursorLoader;
 import android.support.v4.content.Loader;
+import android.support.v7.widget.GridLayoutManager;
+import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
 import android.widget.GridView;
+import android.widget.TextView;
 
 import com.example.android.moviesapp_version_2.data.MovieContract;
 import com.example.android.moviesapp_version_2.sync.MoviesSyncAdapter;
@@ -25,14 +27,15 @@ import com.example.android.moviesapp_version_2.sync.MoviesSyncAdapter;
  * Created by ds034_000 on 1/31/2017.
  */
 
-public class MoviesFragment extends Fragment implements LoaderManager.LoaderCallbacks<Cursor>   {
+public class MoviesFragment extends Fragment implements LoaderManager.LoaderCallbacks<Cursor>, SharedPreferences.OnSharedPreferenceChangeListener  {
     //log tag
     public static final String LOG_TAG = MoviesFragment.class.getSimpleName();
 
-    //adapter to tie to view
+
+    //variables needed to hook up the recyclerView
     private MoviesAdapter adapter;
-    private GridView mGridView;
-    private int mPosition = GridView.INVALID_POSITION;
+    private RecyclerView  mRecyclerView;
+    private int mPosition = RecyclerView.NO_POSITION;
 
     private static final String SELECTED_KEY = "selected_position";
 
@@ -83,23 +86,25 @@ public class MoviesFragment extends Fragment implements LoaderManager.LoaderCall
                              Bundle savedInstanceState){
         View rootView = inflater.inflate(R.layout.fragment_main, container, false);
 
-        //populate adapter with movies data
-        adapter = new MoviesAdapter(getActivity(), null, 0);
 
-        // Get a reference to the GridView, and attach this adapter to it.
-        mGridView = (GridView) rootView.findViewById(R.id.movies_gridView);
-        mGridView.setAdapter(adapter);
-        mGridView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+        /*
+            The next few lines of code will populate the movies grid with data
+        */
+        mRecyclerView = (RecyclerView) rootView.findViewById(R.id.recyclerview_movies);
+        mRecyclerView.setLayoutManager(new GridLayoutManager(getActivity(), 2));
+        View emptyView = rootView.findViewById(R.id.movie_gridview_empty);
 
+        mRecyclerView.setHasFixedSize(true);
+
+        adapter = new MoviesAdapter(getActivity(), new MoviesAdapter.MoviesAdapterOnClickHandler() {
             @Override
-            public void onItemClick(AdapterView<?> adapterView, View view, int position, long l) {
-                Cursor cursor = (Cursor) adapterView.getItemAtPosition(position);
-                if(cursor != null){
-                    ((Callback) getActivity()).onItemSelected(MovieContract.MovieEntry.buildMovieOrderWithMovieId(cursor.getInt(COL_MOVIE_ID)));
-                }
-                mPosition = position;
+            public void onClick(int movieId, MoviesAdapter.MoviesAdapterViewHolder vh) {
+                ((Callback) getActivity()).onItemSelected(MovieContract.MovieEntry.buildMovieOrderWithMovieId(movieId));
+                mPosition = vh.getAdapterPosition();
             }
-        });
+        }, emptyView);
+
+        mRecyclerView.setAdapter(adapter);
 
         if (savedInstanceState != null && savedInstanceState.containsKey(SELECTED_KEY)) {
             mPosition = savedInstanceState.getInt(SELECTED_KEY);
@@ -117,9 +122,9 @@ public class MoviesFragment extends Fragment implements LoaderManager.LoaderCall
     @Override
     public void onSaveInstanceState(Bundle outState) {
         // When tablets rotate, the currently selected list item needs to be saved.
-        // When no item is selected, mPosition will be set to Listview.INVALID_POSITION,
+        // When no item is selected, mPosition will be set to RecyclerView.NO_POSITION,
         // so check for that before storing.
-        if (mPosition != GridView.INVALID_POSITION) {
+        if (mPosition != RecyclerView.NO_POSITION) {
             outState.putInt(SELECTED_KEY, mPosition);
         }
         super.onSaveInstanceState(outState);
@@ -127,13 +132,9 @@ public class MoviesFragment extends Fragment implements LoaderManager.LoaderCall
 
     //restart main activity once a change has been made to settings
     void onSettingChange( ) {
-        update();
         getLoaderManager().restartLoader(MOVIE_LOADER, null, this);
     }
 
-    private void update(){
-        MoviesSyncAdapter.syncImmediately(getActivity());
-    }
 
     @Override
     public Loader<Cursor> onCreateLoader(int i, Bundle bundle) {
@@ -171,12 +172,46 @@ public class MoviesFragment extends Fragment implements LoaderManager.LoaderCall
         if (mPosition != GridView.INVALID_POSITION) {
             // If we don't need to restart the loader, and there's a desired position to restore
             // to, do so now.
-            mGridView.smoothScrollToPosition(mPosition);
+            //mGridView.smoothScrollToPosition(mPosition);
+            mRecyclerView.smoothScrollToPosition(mPosition);
         }
+        updateEmptyView();
     }
 
     @Override
     public void onLoaderReset(Loader<Cursor> loader) {
         adapter.swapCursor(null);
     }
+
+    //update empty view based upon any error message returned
+    private void updateEmptyView(){
+        if(adapter.getItemCount() == 0){
+            TextView view = (TextView) getView().findViewById(R.id.movie_gridview_empty);
+            if(null != view){
+                int message = R.string.empty_movie_list;
+                @MoviesSyncAdapter.Status int status = Utility.getStatus(getActivity());
+                switch(status){
+                    case MoviesSyncAdapter.STATUS_SERVER_DOWN:
+                        message = R.string.empty_movie_list_server_down;
+                        break;
+                    case MoviesSyncAdapter.STATUS_SERVER_INVALID:
+                        message = R.string.empty_movie_list_server_error;
+                        break;
+                    default:
+                        if(!Utility.isNetworkAvailable(getActivity())){
+                            message = R.string.empty_movie_list_no_network;
+                        }
+                }
+                view.setText(message);
+            }
+        }
+    }
+
+    @Override
+    public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+        if ( key.equals(getString(R.string.pref_status_key)) ) {
+            updateEmptyView();
+        }
+    }
+
 }

@@ -2,52 +2,92 @@ package com.example.android.moviesapp_version_2;
 
 import android.content.Context;
 import android.database.Cursor;
+import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.CursorAdapter;
 import android.widget.ImageView;
 
+import com.example.android.moviesapp_version_2.data.MovieContract;
 import com.squareup.picasso.Picasso;
 
 /**
  * Created by ds034_000 on 1/31/2017.
  */
 
-public class MoviesAdapter extends CursorAdapter {
+public class MoviesAdapter extends RecyclerView.Adapter<MoviesAdapter.MoviesAdapterViewHolder> {
 
+    private Cursor mCursor;
+    final private Context mContext;
+    final private MoviesAdapterOnClickHandler mClickHandler;
+    final private View mEmptyView;
 
-    public static class ViewHolder {
-        public final ImageView movieImage;
+    public class MoviesAdapterViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
+        public final ImageView mImage;
 
-        public ViewHolder(View view){
-            movieImage = (ImageView) view.findViewById(R.id.movie_icon);
+        public MoviesAdapterViewHolder(View view){
+            super(view);
+            mImage = (ImageView) view.findViewById(R.id.movie_icon);
+            view.setOnClickListener(this);
+        }
+
+        @Override
+        public void onClick(View v){
+            int adapterPosition = getAdapterPosition();
+            mCursor.moveToPosition(adapterPosition);
+            int movieId = mCursor.getColumnIndex(MovieContract.MovieEntry.COLUMN_MOVIE_ID);
+            mClickHandler.onClick(mCursor.getInt(movieId), this);
         }
     }
 
-    public MoviesAdapter(Context context, Cursor c, int flags){
-        super(context, c, flags);
+    public static interface MoviesAdapterOnClickHandler {
+        void onClick(int movieId, MoviesAdapterViewHolder vh);
+    }
+
+    public MoviesAdapter(Context context, MoviesAdapterOnClickHandler ch, View emptyView){
+        mContext = context;
+        mClickHandler = ch;
+        mEmptyView = emptyView;
     }
 
     @Override
-    public View newView(Context context, Cursor cursor, ViewGroup parent){
-        int layoutId = R.layout.movie_item;
+    public MoviesAdapterViewHolder onCreateViewHolder(ViewGroup viewGroup, int viewType){
+        if(viewGroup instanceof RecyclerView){
+            int layoutId = R.layout.movie_item;
 
-        View view = LayoutInflater.from(context).inflate(layoutId, parent, false);
-        ViewHolder viewHolder = new ViewHolder(view);
-        view.setTag(viewHolder);
-
-        return view;
+            View view = LayoutInflater.from(viewGroup.getContext()).inflate(layoutId, viewGroup, false);
+            view.setFocusable(true);
+            return new MoviesAdapterViewHolder(view);
+        }
+        else{
+            throw new RuntimeException("Not bound to RecyclerView");
+        }
     }
 
     @Override
-    public void bindView(View view, Context context, Cursor cursor){
-        String poster_path = cursor.getString(MoviesFragment.COL_POSTER_PATH);
+    public void onBindViewHolder(MoviesAdapterViewHolder moviesAdapterViewHolder, int position){
+        mCursor.moveToPosition(position);
+        String poster_path = mCursor.getString(MoviesFragment.COL_POSTER_PATH);
+
         String imageUrl = "http://image.tmdb.org/t/p/w185/" + poster_path;
-
-        ViewHolder viewHolder = (ViewHolder) view.getTag();
-
-        Picasso.with(context).load(imageUrl).into(viewHolder.movieImage);
+        Picasso.with(mContext).load(imageUrl).into(moviesAdapterViewHolder.mImage);
 
     }
+
+    @Override
+    public int getItemCount() {
+        if ( null == mCursor ) return 0;
+        return mCursor.getCount();
+    }
+
+    public void swapCursor(Cursor newCursor) {
+        mCursor = newCursor;
+        notifyDataSetChanged();
+        mEmptyView.setVisibility(getItemCount() == 0 ? View.VISIBLE : View.GONE);
+    }
+
+    public Cursor getCursor() {
+        return mCursor;
+    }
+
 }

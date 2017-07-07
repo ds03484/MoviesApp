@@ -7,11 +7,14 @@ import android.content.ContentProviderClient;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.SyncRequest;
 import android.content.SyncResult;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
+import android.support.annotation.IntDef;
 import android.util.Log;
 
 import com.example.android.moviesapp_version_2.BuildConfig;
@@ -26,6 +29,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Vector;
@@ -42,6 +47,16 @@ public class MoviesSyncAdapter extends AbstractThreadedSyncAdapter {
     public static final int SYNC_INTERVAL = 60 * (60 * 24) * 5;
     public static final int SYNC_FLEXTIME = SYNC_INTERVAL;
     //private static final long DAY_IN_MILLIS = 1000 * 60 * 60 * 24;
+
+    @Retention(RetentionPolicy.SOURCE)
+    @IntDef({STATUS_OK, STATUS_SERVER_DOWN, STATUS_SERVER_INVALID, STATUS_UNKNOWN, STATUS_INVALID})
+    public @interface Status {}
+
+    public static final int STATUS_OK = 0;
+    public static final int STATUS_SERVER_DOWN = 1;
+    public static final int STATUS_SERVER_INVALID = 2;
+    public static final int STATUS_UNKNOWN = 3;
+    public static final int STATUS_INVALID = 4;
 
     public MoviesSyncAdapter(Context context, boolean autoInitialize) {
         super(context, autoInitialize);
@@ -90,6 +105,7 @@ public class MoviesSyncAdapter extends AbstractThreadedSyncAdapter {
 
             if (buffer.length() == 0) {
                 // Stream was empty.  No point in parsing.
+                setStatus(getContext(), STATUS_SERVER_DOWN);
                 return;
             }
             MovieJsonStr = buffer.toString();
@@ -98,9 +114,11 @@ public class MoviesSyncAdapter extends AbstractThreadedSyncAdapter {
             Log.e(LOG_TAG, "Error ", e);
             // If the code didn't successfully get the weather data, there's no point in attempting
             // to parse it.
+            setStatus(getContext(), STATUS_SERVER_DOWN);
         } catch (JSONException e) {
             Log.e(LOG_TAG, e.getMessage(), e);
             e.printStackTrace();
+            setStatus(getContext(), STATUS_SERVER_INVALID);
         }
         finally {
             if (urlConnection != null) {
@@ -123,6 +141,19 @@ public class MoviesSyncAdapter extends AbstractThreadedSyncAdapter {
 
         try{
             JSONObject movieJson = new JSONObject(json);
+
+            //do some error checking to make sure you get back correct json string
+            if(movieJson.has("status_code")){
+                int error_code = movieJson.getInt("status_code");
+
+                if(error_code == 2 || error_code == 9 || error_code == 11 || error_code == 15 || error_code == 24){
+                    setStatus(getContext(), STATUS_SERVER_DOWN);
+                }
+                else if(error_code == 6){
+                    setStatus(getContext(), STATUS_INVALID);
+                }
+            }
+
             JSONArray moviesArray = movieJson.getJSONArray("results");
 
             //content values to be inserted into database
@@ -171,9 +202,11 @@ public class MoviesSyncAdapter extends AbstractThreadedSyncAdapter {
 
 
             }
+            setStatus(getContext(), STATUS_OK);
         }catch (JSONException e) {
             Log.e(LOG_TAG, e.getMessage(), e);
             e.printStackTrace();
+            setStatus(getContext(), STATUS_SERVER_INVALID);
         }
 
     }
@@ -259,5 +292,12 @@ public class MoviesSyncAdapter extends AbstractThreadedSyncAdapter {
 
     public static void initializeSyncAdapter(Context context) {
         getSyncAccount(context);
+    }
+
+    static private void setStatus(Context c, @Status int Status){
+        SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(c);
+        SharedPreferences.Editor spe = sp.edit();
+        spe.putInt(c.getString(R.string.pref_status_key), Status);
+        spe.commit();
     }
 }
