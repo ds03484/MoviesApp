@@ -3,4 +3,6 @@
     <color name="colorPrimary">#3F51B5</color>
     <color name="colorPrimaryDark">#303F9F</color>
     <color name="colorAccent">#FF4081</color>
+    <color name="holo_light_primary">#79d37d</color>
+    <color name="holo_green_dark">#669900</color>
 </resources>
